@@ -8,8 +8,8 @@ var curiosity: float = 0.3
 var comfort: float = 0.7
 
 # Скорость изменения (в секунду)
-var energy_decay: float = 0.001
-var thirst_decay: float = 0.002
+var energy_decay: float = 0.0005
+var thirst_decay: float = 0.001
 
 # Время без новых стимулов
 var time_without_stimuli: float = 0.0
