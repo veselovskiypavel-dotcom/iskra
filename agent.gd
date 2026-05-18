@@ -1,39 +1,42 @@
-extends CharacterBody3D
+extends HTTPRequest
 
-var speed: float = 5.0
-var mouse_sensitivity: float = 0.003
+var tick: int = 0
+var is_thinking: bool = false
+
+@onready var intention_system = $"../IntentionSystem"
 
 func _ready():
-	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	request_completed.connect(_on_response)
+	var timer = Timer.new()
+	add_child(timer)
+	timer.wait_time = 3.0
+	timer.one_shot = false
+	timer.timeout.connect(_on_tick)
+	timer.start()
 
-func _input(event):
-	if event is InputEventMouseMotion:
-		rotate_y(-event.relative.x * mouse_sensitivity)
-		$Camera3D.rotate_x(-event.relative.y * mouse_sensitivity)
-		$Camera3D.rotation.x = clamp($Camera3D.rotation.x, -1.5, 1.5)
+func _on_tick():
+	if is_thinking:
+		return
 	
-	if event.is_action_pressed("ui_cancel"):
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	tick += 1
+	is_thinking = true
+	var snapshot = $"../SensorSystem".get_full_snapshot(tick, "день")
+	var json = JSON.stringify(snapshot)
+	var headers = ["Content-Type: application/json"]
+	request("http://127.0.0.1:8000/think", headers, HTTPClient.METHOD_POST, json)
 
-func _physics_process(delta):
-	var input_dir = Vector3.ZERO
+func _on_response(result, code, headers, body):
+	is_thinking = false
 	
-	if Input.is_key_pressed(KEY_W):
-		input_dir -= transform.basis.z
-	if Input.is_key_pressed(KEY_S):
-		input_dir += transform.basis.z
-	if Input.is_key_pressed(KEY_A):
-		input_dir -= transform.basis.x
-	if Input.is_key_pressed(KEY_D):
-		input_dir += transform.basis.x
+	if code != 200:
+		print("Ошибка: ", code)
+		return
 	
-	input_dir.y = 0
-	input_dir = input_dir.normalized()
+	var response = JSON.parse_string(body.get_string_from_utf8())
+	print("💭 ", response.get("thought", "..."))
+	print("😶 ", response.get("emotion", "..."))
 	
-	velocity.x = input_dir.x * speed
-	velocity.z = input_dir.z * speed
-	
-	if not is_on_floor():
-		velocity.y -= 9.8 * delta
-	
-	move_and_slide()
+	# Передать намерение в систему воли
+	var intention = response.get("intention", {})
+	if intention != null and intention is Dictionary:
+		intention_system.set_intention(intention)
