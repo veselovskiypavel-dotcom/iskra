@@ -7,7 +7,7 @@ import re
 
 app = FastAPI()
 
-DEEPSEEK_API_KEY = "sk-2e6473230fa24255b7c3387f65a8e532"
+DEEPSEEK_API_KEY = "-----------"
 DEEPSEEK_URL = "https://api.deepseek.com/chat/completions"
 
 SYSTEM_PROMPT = """Ты — живое существо в мире. У тебя есть тело, ощущения, потребности.
