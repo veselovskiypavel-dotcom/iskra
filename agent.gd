@@ -1,42 +1,48 @@
-extends HTTPRequest
+extends CharacterBody3D
 
-var tick: int = 0
-var is_thinking: bool = false
-
-@onready var intention_system = $"../IntentionSystem"
+var speed: float = 3.0
+var mouse_sensitivity: float = 0.003
+var player_controlled: bool = false  # true = ты управляешь, false = ИИ
 
 func _ready():
-	request_completed.connect(_on_response)
-	var timer = Timer.new()
-	add_child(timer)
-	timer.wait_time = 3.0
-	timer.one_shot = false
-	timer.timeout.connect(_on_tick)
-	timer.start()
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
-func _on_tick():
-	if is_thinking:
-		return
+func _input(event):
+	# Переключение режима: Tab
+	if event.is_action_pressed("ui_focus_next"):
+		player_controlled = !player_controlled
+		print("Режим: ", "ИГРОК" if player_controlled else "ИИ")
 	
-	tick += 1
-	is_thinking = true
-	var snapshot = $"../SensorSystem".get_full_snapshot(tick, "день")
-	var json = JSON.stringify(snapshot)
-	var headers = ["Content-Type: application/json"]
-	request("http://127.0.0.1:8000/think", headers, HTTPClient.METHOD_POST, json)
+	if event.is_action_pressed("ui_cancel"):
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	
+	# Камера — всегда работает (чтобы смотреть вокруг)
+	if event is InputEventMouseMotion and player_controlled:
+		rotate_y(-event.relative.x * mouse_sensitivity)
+		$Camera3D.rotate_x(-event.relative.y * mouse_sensitivity)
+		$Camera3D.rotation.x = clamp($Camera3D.rotation.x, -1.5, 1.5)
 
-func _on_response(result, code, headers, body):
-	is_thinking = false
+func _physics_process(delta):
+	if player_controlled:
+		_player_movement(delta)
 	
-	if code != 200:
-		print("Ошибка: ", code)
-		return
+	if not is_on_floor():
+		velocity.y -= 9.8 * delta
 	
-	var response = JSON.parse_string(body.get_string_from_utf8())
-	print("💭 ", response.get("thought", "..."))
-	print("😶 ", response.get("emotion", "..."))
+	move_and_slide()
+
+func _player_movement(delta):
+	var input_dir = Vector3.ZERO
+	if Input.is_key_pressed(KEY_W):
+		input_dir -= transform.basis.z
+	if Input.is_key_pressed(KEY_S):
+		input_dir += transform.basis.z
+	if Input.is_key_pressed(KEY_A):
+		input_dir -= transform.basis.x
+	if Input.is_key_pressed(KEY_D):
+		input_dir += transform.basis.x
 	
-	# Передать намерение в систему воли
-	var intention = response.get("intention", {})
-	if intention != null and intention is Dictionary:
-		intention_system.set_intention(intention)
+	input_dir.y = 0
+	input_dir = input_dir.normalized()
+	velocity.x = input_dir.x * speed
+	velocity.z = input_dir.z * speed
