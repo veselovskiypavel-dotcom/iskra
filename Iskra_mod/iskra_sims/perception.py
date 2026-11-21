@@ -229,6 +229,9 @@ def _build_action_menu(sim) -> list:
         for dist, cat, obj in cands:
             if cat in seen:
                 continue
+            # Меню обещает только то, что объект и правда умеет (action.menu_affordances) — иначе пункт ложный.
+            if not action.menu_affordances(obj, cat):
+                continue
             seen.add(cat)
             menu.append({
                 "id":        idx,

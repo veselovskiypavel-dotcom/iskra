@@ -152,6 +152,51 @@ MENU_ACTIONS = {
 }
 
 
+# 🎯 СТРОГОЕ СООТВЕТСТВИЕ ПУНКТА МЕНЮ ДЕЙСТВИЮ (2026-11-22). Было: не нашлось действия с записанным именем —
+# мод брал ПЕРВОЕ попавшееся действие объекта, лишь бы прошло. На версии игры 1.129 у телевизора так вышло
+# «запереть телевизор для всех», у книжного шкафа — «купить книги» (окно магазина). Ложное действие хуже
+# никакого: теперь пункт меню исполняет только действие, чьё имя содержит слово своей категории, а иначе —
+# ничего, и в лог уходят все действия объекта (чтобы дописать слово под новую версию игры).
+MENU_MATCH = {
+    "туалет":       ("toiletsit", "toiletstand", "toilet-use", "toilet_use"),
+    "холодильник":  ("grabsnack", "grabfood", "leftovers", "dish_collection"),
+    "душ":          ("takeshower",),
+    "ванна":        ("takebath",),
+    "кровать":      ("sleep", "nap", "relax"),
+    "телевизор":    ("watch",),
+    "компьютер":    ("computer_play", "playgame", "surfweb", "browseweb", "surf_web"),
+    "книжный шкаф": ("readrandom", "readbook", "read_book", "bookcase_read", "bookshelf_read"),
+    "раковина":     ("washhands", "wash_hands"),
+    "диван":        ("sit",),
+    "кресло":       ("sit",),
+    "стул":         ("sit",),
+}
+# Слова, которые пункт меню не исполняет никогда: покупки, замки, ремонт, улучшения, детское, читы.
+MENU_BLOCK = ("purchase", "buy", "lock", "upgrade", "repair", "fixit", "sabotage", "salvage", "cleanup", "clean_up",
+              "possess", "knack", "hire", "toddler", "infant", "child", "picker", "readto", "debug", "cheat",
+              "turnoff", "turn_off", "destroy", "reset", "kick", "rummage")
+
+
+def menu_affordances(obj, category) -> list:
+    """Действия объекта, которые и правда исполняют пункт меню категории; записанные имена — первыми."""
+    spec = MENU_ACTIONS.get(category)
+    words = MENU_MATCH.get(category, ())
+    if spec is None or not words:
+        return []
+    _label, prefer, exclude = spec
+    out = []
+    for a in _get_affordances(obj):
+        name = getattr(a, '__name__', '')
+        low = name.lower()
+        if not name or name in exclude or any(b in low for b in MENU_BLOCK):
+            continue
+        if name in prefer or any(w in low for w in words):
+            out.append(a)
+    order = {n: i for i, n in enumerate(prefer)}
+    out.sort(key=lambda a: order.get(getattr(a, '__name__', ''), len(prefer)))
+    return out
+
+
 def _find_object_by_id(object_id):
     import services
     try:
@@ -181,8 +226,28 @@ def execute_chosen(sim, chosen: dict) -> bool:
         log(f"[Искра] execute_chosen: объект id={obj_id} ({category}) не найден")
         return False
     log(f"[Искра] execute_chosen → '{label}' на {type(obj).__name__}")
-    return _push_first_affordance(sim, obj, tag="choice:" + str(category),
-                                  prefer=prefer, exclude=exclude, autonomy=True)
+    cands = menu_affordances(obj, category)
+    if not cands:
+        names = [getattr(a, '__name__', '?') for a in _get_affordances(obj)]
+        log(f"[Искра] execute_chosen: у {type(obj).__name__} нет действия «{label}» — ничего не делаем. Все действия: {names}")
+        return False
+    try:
+        context = _make_context(sim, autonomy=True, source="script")
+    except Exception as e:
+        log(f"[Искра] execute_chosen: контекст не собран: {e}")
+        return False
+    log(f"[Искра] choice:{category} → пробуем только: {[getattr(a, '__name__', '?') for a in cands]}")
+    for aff in cands:
+        name = getattr(aff, '__name__', str(aff))
+        try:
+            result = sim.push_super_affordance(aff, obj, context)
+            log(f"[Искра] choice:{category} → {name}: {result}")
+            if result:
+                return True
+        except Exception as e:
+            log(f"[Искра] choice:{category} → {name}: ошибка {e}")
+    log(f"[Искра] choice:{category} → подходящие действия не прошли — ничего не делаем")
+    return False
 
 def _eat(sim) -> bool:
     # 1. Готовая еда на тарелках/прилавке — едим сразу, без готовки
