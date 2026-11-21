@@ -194,6 +194,8 @@ class PerceptionSnapshot(BaseModel):
     current_action: dict = {}
     needs_trend: dict = {}
     available_actions: list = []
+    sim_id: int = 0          # 🎬 кто думает — для ленты мыслей (оверлей /thoughts), Модуль 4: несколько агентов
+    sim_name: str = ""
  
  
 def build_user_prompt(s: PerceptionSnapshot, fire_ticks: int = 0) -> str:
@@ -350,6 +352,45 @@ def rule_based_fallback(snapshot: PerceptionSnapshot) -> dict:
         }
  
  
+# ── 🎬 ЛЕНТА МЫСЛЕЙ ДЛЯ ОВЕРЛЕЯ (2026-11-22) ─────────────────────────────
+# Доска уведомлений игры не держит поток мыслей (переполнилась, новые не показывались), а текста над головой
+# Sims 4 не умеет — только значки. Мысли каждого сима — сюда, страница /thoughts показывает их поверх игры
+# (OBS: источник «Браузер»). Запасные ответы (модель не ответила) — не мысли, в ленту не идут.
+import time as _time
+from collections import deque as _deque
+from fastapi.responses import HTMLResponse, JSONResponse
+_feed = _deque(maxlen=60)
+_feed_id = 0
+_last_thought = {}   # sim → последняя мысль: повтор в ленту не кладём
+
+
+def _feed_add(snapshot, result):
+    global _feed_id
+    thought = str(result.get("thought") or "").strip()
+    if not thought or thought == "..." or result.get("fallback"):
+        return
+    sim = snapshot.sim_name or (f"Сим {snapshot.sim_id}" if snapshot.sim_id else "Сим")
+    if _last_thought.get(sim) == thought:
+        return
+    _last_thought[sim] = thought
+    _feed_id += 1
+    doing = (snapshot.current_action or {}).get("label") or ""
+    goal = (result.get("chosen_action") or {}).get("label") or (result.get("intention") or {}).get("description") or ""
+    _feed.append({"id": _feed_id, "t": _time.time(), "sim": sim, "thought": thought,
+                  "emotion": str(result.get("emotion") or ""), "doing": doing if doing and doing != "?" else goal})
+
+
+@app.get("/thoughts", response_class=HTMLResponse)
+async def thoughts_page():
+    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "overlay.html"), encoding="utf-8") as f:
+        return f.read()
+
+
+@app.get("/thoughts.json")
+async def thoughts_json(n: int = 4):
+    return JSONResponse(list(_feed)[-max(1, min(n, 60)):])
+
+
 @app.post("/think")
 async def think(snapshot: PerceptionSnapshot):
     global consecutive_errors, _fire_ticks
@@ -463,6 +504,7 @@ async def think(snapshot: PerceptionSnapshot):
                 print(f"💭 {result.get('thought', '...')}")
                 print(f"😶 {result.get('emotion', '...')}")
                 print(f"📝 STM: {len(short_term_memory)} | LTM: {len(long_term_memories)}")
+                _feed_add(snapshot, result)
  
                 return result
  

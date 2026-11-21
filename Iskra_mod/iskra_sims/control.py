@@ -57,6 +57,10 @@ def unregister_all() -> None:
         unregister_sim(entry["sim"])
 
 
+_note_goal: dict = {}   # sim_id → цель, на которой показали уведомление
+_note_at: dict = {}     # sim_id → когда (time.time)
+
+
 def _tick(sim) -> None:
     global _tick_counter
     _tick_counter += 1
@@ -102,8 +106,15 @@ def _tick(sim) -> None:
     # Дедуп внутри display: одна мысль висит, пока не сменится.
     try:
         # Запасной ответ сервера (модель не ответила) — не мысль сима: не показываем.
-        if not intention.get("fallback"):
-            display.show_thought(sim, intention.get("thought", ""), intention.get("emotion", ""))
+        # 🎬 Все мысли — в оверлее сервера (/thoughts); в игре — только при смене цели и не чаще THOUGHT_NOTE_SEC:
+        # доска уведомлений переполнялась, и новые мысли переставали появляться (2026-11-22).
+        if not intention.get("fallback") and config.THOUGHTS_IN_GAME:
+            import time as _t
+            g = (intention.get("chosen_action") or {}).get("category") or (intention.get("intention") or {}).get("goal")
+            if g != _note_goal.get(sim.id) and _t.time() - _note_at.get(sim.id, 0) >= config.THOUGHT_NOTE_SEC:
+                _note_goal[sim.id] = g
+                _note_at[sim.id] = _t.time()
+                display.show_thought(sim, intention.get("thought", ""), intention.get("emotion", ""))
     except Exception as _e:
         log(f"[Искра] display.show_thought: {_e}")
 

@@ -445,4 +445,16 @@ def collect(sim, tick: int) -> dict:
         "current_action":   action_st,
         "needs_trend":      trend,
         "available_actions": menu,
+        "sim_id":   getattr(sim, "id", 0) or 0,
+        "sim_name": _sim_name(sim),
     }
+
+
+def _sim_name(sim) -> str:
+    """Имя сима для ленты мыслей (sim.full_name в этой версии игры пустой)."""
+    try:
+        info = sim.sim_info
+        name = " ".join(x for x in (getattr(info, "first_name", ""), getattr(info, "last_name", "")) if x).strip()
+        return name or getattr(sim, "full_name", "") or ""
+    except Exception:
+        return ""
