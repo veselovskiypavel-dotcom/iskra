@@ -122,6 +122,16 @@ def _tick(sim) -> None:
         is_long = new_goal in _LONG_COOLDOWN_GOALS
 
     prev_goal = _last_goal.get(sim_id)
+
+    # «Ничего» = продолжаю, что делаю: очередь не трогаем (раньше смена цели на none рвала телевизор).
+    # Цель, которую сим уже исполняет (спит, а просят «спать» или «кровать»), — тоже продолжение, а не новая цель:
+    # раньше rest → act:кровать считалась сменой, очередь чистилась, и сон перезапускался.
+    if new_goal == "none" or _already_doing(sim, new_goal):
+        if new_goal != "none":
+            _last_goal[sim_id] = new_goal
+        log(f"[Искра] Тик {_tick_counter}: {new_goal!r} — продолжаю текущее занятие, ничего не толкаю")
+        return
+
     goal_changed = new_goal != prev_goal
 
     # ЗАЩИТА ДОЛГОГО ДЕЙСТВИЯ: пока сим идёт в туалет/к кровати/есть — не даём LLM
@@ -207,19 +217,31 @@ _PASSIVE_INTERACTIONS = frozenset({
 })
 
 def _is_sim_busy(sim) -> bool:
-    """True если сим занят реальным (не idle/passive) действием."""
+    """True если сим занят настоящим делом. Мерка одна с восприятием (perception._action_state):
+    sleep_Passive / watch-passive — это сон и телевизор, а не простой (2026-11-22)."""
     try:
-        running = sim.queue.running
-        if running is None:
-            return False
-        name = type(running).__name__
-        if name in _PASSIVE_INTERACTIONS:
-            return False
-        name_lower = name.lower()
-        # Ловим любые *_Passive и *_Idle по паттерну
-        if "passive" in name_lower or "_idle" in name_lower:
-            return False
-        return True
+        return bool(perception._action_state(sim).get("busy"))
+    except Exception:
+        return False
+
+
+# Какое занятие (ярлык perception._action_state) уже исполняет цель — повторять её не нужно.
+_ACTIVITY_OF_GOAL = {
+    "rest": ("сплю", "дремлю"), "sleep": ("сплю", "дремлю"), "act:кровать": ("сплю", "дремлю"),
+    "eat": ("ем",), "act:холодильник": ("ем",),
+    "hygiene": ("принимаю душ", "принимаю ванну"), "act:душ": ("принимаю душ",), "act:ванна": ("принимаю ванну",),
+    "bladder": ("сижу в туалете",), "toilet": ("сижу в туалете",), "act:туалет": ("сижу в туалете",),
+    "fun": ("смотрю телевизор", "читаю"), "act:телевизор": ("смотрю телевизор",), "act:книжный шкаф": ("читаю",),
+    "social": ("разговариваю",),
+    "act:диван": ("сижу",), "act:кресло": ("сижу",), "act:стул": ("сижу",),
+}
+
+
+def _already_doing(sim, goal) -> bool:
+    """Сим уже занят тем, чего просит цель (спит, а цель «спать» или «кровать»)."""
+    try:
+        st = perception._action_state(sim)
+        return bool(st.get("busy")) and st.get("label") in _ACTIVITY_OF_GOAL.get(goal, ())
     except Exception:
         return False
 

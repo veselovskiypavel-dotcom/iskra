@@ -196,7 +196,7 @@ _ACTION_LABELS = [
 
 # Интеракции-простой: сим технически «занят», но по сути ничего не делает.
 _PASSIVE_ACTIONS = (
-    "passive", "_idle", "stand", "noneinteraction", "sim-stand", "emotion_idle",
+    "passive", "_idle", "idle_", "stand", "noneinteraction", "sim-stand", "emotion_idle",
 )
 
 
@@ -265,7 +265,12 @@ def _action_state(sim) -> dict:
                 break
         if label is None:
             label = "стою без дела" if is_passive else raw
-        return {"raw": raw, "label": label, "busy": not is_passive}
+        # ⚠️ 2026-11-22: идущее занятие игра зовёт с хвостом Passive (sleep_Passive, Shower_TakeShower_Passive,
+        # watch-passive, Food_Eat_Passive). Раньше любой «passive» считался простоем — модели уходило «стою,
+        # ничего не делаю», и спящий сим «ложился» снова, а моющийся думал «душ рядом, надо помыться».
+        # Узнали занятие по слову — сим занят, даже если в имени есть passive. Простой — только без занятия.
+        known = any(kw in low for kw, _h in _ACTION_LABELS)
+        return {"raw": raw, "label": label, "busy": known or not is_passive}
     except Exception:
         return {"raw": "?", "label": "?", "busy": False}
 
