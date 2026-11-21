@@ -1,4 +1,13 @@
 # Godot 4+ specific ignores
 .godot/
 /android/
+
+# 🔑 ключи — только в .env (образец .env.example)
 .env
+# Python
+__pycache__/
+*.pyc
+# 🧩 мод Sims 4: собранные архивы и чужая библиотека S4CL (берётся с её GitHub, версия под игру)
+*.ts4script
+Iskra_mod/iskra_sims.zip
+Iskra_mod/Sims4CommunityLibrary-main/

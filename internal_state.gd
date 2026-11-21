@@ -1,32 +1,39 @@
 extends Node
 
-# Потребности: 1.0 = полностью удовлетворена, 0.0 = критично
 var energy: float = 0.8
 var thirst: float = 0.9
 var safety: float = 1.0
 var curiosity: float = 0.3
 var comfort: float = 0.7
 
-# Скорость изменения (в секунду)
 var energy_decay: float = 0.0005
 var thirst_decay: float = 0.001
 
-# Время без новых стимулов
 var time_without_stimuli: float = 0.0
+var time_stationary: float = 0.0
+var _last_pos: Vector3 = Vector3.ZERO
 
 func _process(delta):
-	# Голод и жажда растут со временем
 	energy = max(0.0, energy - energy_decay * delta)
 	thirst = max(0.0, thirst - thirst_decay * delta)
 	
-	# Любопытство растёт при скуке
 	time_without_stimuli += delta
-	if time_without_stimuli > 15.0:
-		curiosity = min(1.0, curiosity + 0.01 * delta)
+	if time_without_stimuli > 10.0:
+		curiosity = min(1.0, curiosity + 0.03 * delta)
 	
-	# Комфорт пока статичный (потом зависит от погоды, укрытия)
+	var parent = get_parent()
+	if parent is CharacterBody3D:
+		var current_pos = parent.global_position
+		if current_pos.distance_to(_last_pos) < 0.3:
+			time_stationary += delta
+			if time_stationary > 20.0:
+				curiosity = min(1.0, curiosity + 0.05 * delta)
+		else:
+			time_stationary = 0.0
+		_last_pos = current_pos
+	
 	if int(time_without_stimuli) % 10 == 0 and fmod(time_without_stimuli, 10.0) < delta:
-		print("Энергия: %.2f  Жажда: %.2f  Любопытство: %.2f" % [energy, thirst, curiosity])
+		print("Энергия: %.2f  Жажда: %.2f  Любопытство: %.2f  Неподвижность: %.0fс" % [energy, thirst, curiosity, time_stationary])
 
 func feed(amount: float):
 	energy = min(1.0, energy + amount)
@@ -35,7 +42,6 @@ func drink(amount: float):
 	thirst = min(1.0, thirst + amount)
 
 func register_stimulus():
-	"""Что-то произошло — сбросить таймер скуки"""
 	time_without_stimuli = 0.0
 	curiosity = max(0.0, curiosity - 0.1)
 

@@ -2,27 +2,46 @@ extends Area3D
 
 @onready var internal_state = $"../InternalState"
 
-func _ready():
-	body_entered.connect(_on_body_entered)
-	area_entered.connect(_on_area_entered)
+# Кулдаун чтобы не спамить взаимодействиями
+var _interact_cooldown: float = 0.0
+var COOLDOWN_TIME: float = 2.0  # секунды между взаимодействиями
 
-func _on_body_entered(body: Node3D):
-	_try_interact(body)
-
-func _on_area_entered(area: Area3D):
-	_try_interact(area)
-
-func _try_interact(node: Node):
-	var name = node.name.to_lower()
+func _physics_process(delta):
+	_interact_cooldown -= delta
+	if _interact_cooldown > 0.0:
+		return
 	
-	if "water" in name or "river" in name:
+	# Проверяем всё что перекрывается с нашей областью
+	for body in get_overlapping_bodies():
+		if _try_interact(body):
+			return
+	
+	for area in get_overlapping_areas():
+		if _try_interact(area):
+			return
+
+func _try_interact(node: Node) -> bool:
+	var node_name = node.name.to_lower()
+	
+	if "water" in node_name or "river" in node_name:
 		internal_state.drink(0.4)
-		print("💧 Напился! Жажда: ", internal_state.thirst)
+		internal_state.register_stimulus()
+		_interact_cooldown = COOLDOWN_TIME
+		print("💧 Напился! Жажда: %.2f" % internal_state.thirst)
+		return true
 	
-	elif "food" in name or "berry" in name:
+	elif "food" in node_name or "berry" in node_name:
 		internal_state.feed(0.3)
-		print("🍎 Поел! Энергия: ", internal_state.energy)
+		internal_state.register_stimulus()
+		_interact_cooldown = COOLDOWN_TIME
+		print("🍎 Поел! Энергия: %.2f" % internal_state.energy)
+		return true
 	
-	elif "shelter" in name or "cave" in name:
+	elif "shelter" in node_name or "cave" in node_name:
 		internal_state.safety = min(1.0, internal_state.safety + 0.2)
-		print("🏠 В укрытии! Безопасность: ", internal_state.safety)
+		internal_state.register_stimulus()
+		_interact_cooldown = COOLDOWN_TIME
+		print("🏠 В укрытии! Безопасность: %.2f" % internal_state.safety)
+		return true
+	
+	return false

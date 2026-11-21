@@ -14,3 +14,7 @@ config/name="Iskra"
 run/main_scene="uid://covoqv0tq2i0j"
 config/features=PackedStringArray("4.4", "Forward Plus")
 config/icon="res://icon.svg"
+
+[navigation]
+
+3d/default_cell_height=2.0
