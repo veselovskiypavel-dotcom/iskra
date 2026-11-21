@@ -1,6 +1,6 @@
 # Искра-Симс — Handoff (продолжить завтра)
 
-> Рабочая заметка для следующей сессии. Дата последней правки: 2026-07-01.
+> Рабочая заметка для следующей сессии. Дата последней правки: 2026-11-22 (ключ в .env, мод в git; в игре с 2026-07-01 не проверяли).
 >
 > **🎬 КОНЦЕПЦИЯ (поворот 2026-06-30):** не научная симуляция мозга, а **развлекательный
 > контент**. Симы The Sims 4 под управлением РАЗНЫХ LLM, социальные эксперименты: общаются,
@@ -32,6 +32,8 @@
 
 **Зависимость:** `Sims4CommunityLibrary-main` (S4CL), деплоится как `sims4communitylib_new.ts4script`.
 S4CL нужен и для `display.py` (`CommonBasicNotification`).
+
+**Git:** весь `Documents\iskra` — рабочая копия https://github.com/veselovskiypavel-dotcom/iskra (ветка `main`): мод в `Iskra_mod/`, Godot-версия в корне. Собранные `.ts4script` и S4CL в git не идут (S4CL — с её GitHub, версия под игру).
 
 **Память Claude по проекту:** `C:\Users\Alina\.claude\projects\C--Users-Alina--local-bin\memory\project_iskra.md`
 
@@ -169,7 +171,7 @@ print('deployed', os.path.getsize(out))
 - `_clear_queue` использует `USER_CANCEL` (корректно будит сон), `KILLED` как fallback.
 - Канал мыслей зависит от S4CL (`CommonBasicNotification`). Если не подгрузился — fallback
   на сырой `UiDialogNotification` (TODO, пока не сделан).
-- API-ключ DeepSeek пока в открытую в `server.py` (строка 11) — НЕ вынесен в .env. TODO.
+- 🔑 API-ключ DeepSeek — в `Iskra_mod/.env` (`DEEPSEEK_API_KEY`, образец `.env.example`); `.env` в git не идёт. Вынесен 2026-11-22.
 - Модель LLM: `deepseek-v4-pro`, `max_tokens=800`, `temperature=0.8`.
   Изредка обрезанный JSON от LLM (`max_tokens`) — retry в server.py вытаскивает.
 - Управляется только active sim (`services.active_sim_info()`), его автономия глушится
