@@ -76,7 +76,7 @@ def _worker() -> None:
                 _last_intention[sim_id] = result
             goal = result.get('intention', {}).get('goal', '?')
             thought = result.get('thought', '...')[:80]
-            log(f"[Искра] ЛЛМ: goal={goal} | {thought}")
+            log(f"[Искра] {'⚠️ ЗАПАСНОЙ (модель не ответила)' if result.get('fallback') else 'ЛЛМ'}: goal={goal} | {thought}")
         except urllib.error.URLError as e:
             log(f"[Искра] Сервер недоступен: {e.reason}")
         except Exception as e:

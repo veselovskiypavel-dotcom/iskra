@@ -327,9 +327,9 @@ def rule_based_fallback(snapshot: PerceptionSnapshot) -> dict:
         }
     elif energy_val < 0.4:
         return {
-            "thought": "Есть хочу...",
-            "emotion": "голод",
-            "intention": {"goal": "eat", "description": "найти еду"},
+            "thought": "Устал... надо прилечь.",
+            "emotion": "усталость",
+            "intention": {"goal": "rest", "description": "отдохнуть"},
             "remember": False, "memory_summary": "", "memory_tags": ""
         }
     elif curiosity_val > 0.6:
@@ -364,7 +364,7 @@ async def think(snapshot: PerceptionSnapshot):
  
     if consecutive_errors >= 3:
         print("⚡ Fallback: rule-based решение")
-        result = rule_based_fallback(snapshot)
+        result = {**rule_based_fallback(snapshot), "fallback": True}
         consecutive_errors = max(0, consecutive_errors - 1)
         return result
  
@@ -385,11 +385,21 @@ async def think(snapshot: PerceptionSnapshot):
                             {"role": "user", "content": user_prompt}
                         ],
                         "max_tokens": 800,
-                        "temperature": 0.8
+                        "temperature": 0.8,
+                        # 🧠 Без размышления (2026-11-22): DeepSeek V4 по умолчанию «думает» в ТОТ ЖЕ max_tokens —
+                        # на коротком промпте 650 из 752 токенов уходили в размышление, а с ростом памяти ответ
+                        # переставал влезать: пустой content → три провала → rule-based «...» и сим стоял.
+                        # Тику в 3 с нужен быстрый ответ; размышление вернуть — только с большим max_tokens.
+                        "thinking": {"type": "disabled"}
                     }
                 )
                 data = response.json()
-                raw = data["choices"][0]["message"]["content"]
+                if response.status_code != 200:
+                    raise RuntimeError(f"DeepSeek {response.status_code}: {str(data)[:200]}")
+                choice = data["choices"][0]
+                raw = choice["message"].get("content") or ""
+                if not raw.strip():
+                    raise RuntimeError(f"пустой ответ (finish={choice.get('finish_reason')})")
  
                 clean = raw.strip()
                 if clean.startswith("```"):
@@ -462,7 +472,7 @@ async def think(snapshot: PerceptionSnapshot):
  
     consecutive_errors += 1
     print(f"❌ Все попытки провалились. Ошибок подряд: {consecutive_errors}")
-    return rule_based_fallback(snapshot)
+    return {**rule_based_fallback(snapshot), "fallback": True}
  
  
 @app.get("/health")

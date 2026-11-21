@@ -101,7 +101,9 @@ def _tick(sim) -> None:
     # Канал МЫСЛЕЙ (только для нас) — показываем до любых return по кулдауну.
     # Дедуп внутри display: одна мысль висит, пока не сменится.
     try:
-        display.show_thought(sim, intention.get("thought", ""), intention.get("emotion", ""))
+        # Запасной ответ сервера (модель не ответила) — не мысль сима: не показываем.
+        if not intention.get("fallback"):
+            display.show_thought(sim, intention.get("thought", ""), intention.get("emotion", ""))
     except Exception as _e:
         log(f"[Искра] display.show_thought: {_e}")
 
